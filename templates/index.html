@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 饰品价格查询 - SteamDT</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 40px 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+
+        h1 { text-align: center; color: #f0a500; margin-bottom: 8px; font-size: 1.8rem; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+
+        /* ===== 工具栏 ===== */
+        .toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+        .currency-select {
+            padding: 8px 14px;
+            background: #1e1e3a;
+            color: #f0a500;
+            border: 2px solid #2a2a4a;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            outline: none;
+        }
+        .currency-select:focus { border-color: #f0a500; }
+
+        /* ===== 搜索框 ===== */
+        .search-box { display: flex; gap: 10px; margin-bottom: 24px; }
+        .search-box input {
+            flex: 1; padding: 14px 18px;
+            border: 2px solid #2a2a4a; border-radius: 10px;
+            background: #1e1e3a; color: #fff; font-size: 1rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        .search-box input:focus { border-color: #f0a500; }
+        .search-box button {
+            padding: 14px 28px; background: #f0a500;
+            border: none; border-radius: 10px;
+            color: #1a1a2e; font-weight: 700; font-size: 1rem;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .search-box button:hover { background: #d49400; }
+        .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ===== 卡片 ===== */
+        .result-card {
+            background: #1e1e3a; border-radius: 14px;
+            padding: 24px; margin-bottom: 16px;
+            border: 1px solid #2a2a4a; display: none;
+        }
+        .result-card.show { display: block; }
+
+        .card-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 18px; gap: 12px;
+        }
+        .card-header h3 { color: #f0a500; font-size: 1.1rem; word-break: break-all; }
+        .back-btn {
+            background: transparent; color: #f0a500;
+            border: 1px solid #f0a500; border-radius: 8px;
+            padding: 6px 14px; font-size: 0.85rem;
+            cursor: pointer; transition: all 0.2s;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .back-btn:hover { background: #f0a500; color: #1a1a2e; }
+
+        /* ===== 候选列表 ===== */
+        .candidate-list { list-style: none; }
+        .candidate-list li {
+            padding: 14px 16px; background: #252545;
+            border-radius: 8px; margin-bottom: 8px;
+            cursor: pointer; transition: all 0.2s;
+            display: flex; justify-content: space-between;
+            align-items: center; gap: 12px;
+        }
+        .candidate-list li:hover { background: #2f2f55; transform: translateX(4px); }
+        .candidate-list li .name { font-weight: 600; color: #e0e0e0; margin-bottom: 4px; }
+        .candidate-list li .sub { font-size: 0.78rem; color: #888; word-break: break-all; }
+        .candidate-list li .arrow { color: #f0a500; font-size: 1.1rem; flex-shrink: 0; }
+
+        /* ===== 价格网格 ===== */
+        .price-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 14px;
+        }
+        .price-item {
+            background: #252545; border-radius: 10px;
+            padding: 16px; border: 1px solid #2a2a4a;
+            transition: all 0.3s; cursor: pointer;
+        }
+        .price-item:hover { border-color: #f0a500; }
+        .price-item.highlight {
+            border-color: #4ecca3;
+            box-shadow: 0 0 0 2px rgba(78, 204, 163, 0.4), 0 0 20px rgba(78, 204, 163, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .price-item .platform {
+            font-size: 0.85rem; color: #aaa; margin-bottom: 10px;
+            font-weight: 600; display: flex;
+            justify-content: space-between; align-items: center; gap: 8px;
+        }
+        .price-item .platform .badge {
+            font-size: 0.7rem; padding: 2px 8px;
+            border-radius: 4px; background: #2a2a4a; color: #aaa;
+            white-space: nowrap;
+        }
+        .price-item .badge.lowest { background: #1a4d3a; color: #4ecca3; }
+        .price-item .badge.highest { background: #4d3a1a; color: #f0a500; }
+
+        .price-row {
+            display: flex; justify-content: space-between;
+            margin-bottom: 6px; font-size: 0.85rem;
+        }
+        .price-row .key { color: #888; }
+        .price-row .sell { color: #4ecca3; font-weight: 700; }
+        .price-row .buy { color: #f0a500; font-weight: 600; }
+
+        /* ===== 柱状图 ===== */
+        .chart-wrap {
+            margin-top: 24px; padding-top: 20px;
+            border-top: 1px dashed #2a2a4a;
+        }
+        .chart-wrap h4 {
+            color: #f0a500; margin-bottom: 14px;
+            font-size: 1rem; font-weight: 600;
+            display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 8px;
+        }
+        .chart-hint {
+            font-size: 0.75rem; color: #666;
+            font-weight: 400;
+        }
+        .chart-container {
+            background: #252545; border-radius: 10px;
+            padding: 20px 16px 16px; border: 1px solid #2a2a4a;
+            overflow-x: auto;
+        }
+        .bar-chart {
+            display: flex; align-items: flex-end;
+            justify-content: space-around; gap: 12px;
+            height: 280px; min-width: 100%;
+            padding-bottom: 60px; position: relative;
+            border-bottom: 1px solid #3a3a5a;
+        }
+        .bar-wrapper {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-end;
+            flex: 1; min-width: 60px; max-width: 120px;
+            height: 100%; position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .bar-wrapper:hover { transform: translateY(-4px); }
+        .bar-wrapper.highlight .bar {
+            filter: brightness(1.3);
+            box-shadow: 0 0 16px rgba(78, 204, 163, 0.6);
+        }
+
+        .bar-value {
+            font-size: 0.78rem; color: #f0a500; font-weight: 700;
+            margin-bottom: 4px; white-space: nowrap;
+            transition: color 0.3s;
+        }
+        .bar-wrapper.lowest .bar-value { color: #4ecca3; }
+        .bar-wrapper.highlight .bar-value { color: #4ecca3; }
+
+        .bar {
+            width: 70%;
+            background: linear-gradient(180deg, #f0a500 0%, #d49400 100%);
+            border-radius: 6px 6px 0 0;
+            height: 0;
+            transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        background 0.3s,
+                        box-shadow 0.3s;
+            position: relative;
+        }
+        .bar-wrapper.lowest .bar {
+            background: linear-gradient(180deg, #4ecca3 0%, #3aa588 100%);
+        }
+
+        .bar-label {
+            position: absolute; bottom: -50px;
+            font-size: 0.78rem; color: #ccc;
+            text-align: center; width: 100%; line-height: 1.3;
+        }
+        .bar-label .platform-name {
+            display: block; font-weight: 600;
+            margin-bottom: 2px; color: #e0e0e0;
+        }
+        .bar-label .platform-price {
+            display: block; color: #f0a500;
+            font-weight: 700; font-size: 0.75rem;
+        }
+        .bar-wrapper.lowest .bar-label .platform-price { color: #4ecca3; }
+
+        /* ===== 历史价格折线图 ===== */
+        .history-wrap {
+            margin-top: 24px; padding-top: 20px;
+            border-top: 1px dashed #2a2a4a;
+        }
+        .history-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 14px;
+            flex-wrap: wrap; gap: 10px;
+        }
+        .history-header h4 {
+            color: #f0a500; font-size: 1rem; font-weight: 600;
+        }
+        .platform-select {
+            padding: 6px 12px; background: #252545;
+            color: #e0e0e0; border: 1px solid #3a3a5a;
+            border-radius: 6px; font-size: 0.85rem;
+            cursor: pointer; outline: none;
+        }
+        .platform-select:focus { border-color: #f0a500; }
+        .history-container {
+            background: #252545; border-radius: 10px;
+            padding: 16px; border: 1px solid #2a2a4a;
+            overflow-x: auto;
+        }
+        .history-svg {
+            display: block; width: 100%;
+            min-width: 500px; height: 220px;
+        }
+        .history-empty {
+            text-align: center; color: #666;
+            padding: 30px; font-size: 0.85rem;
+        }
+
+        /* ===== 加载/错误 ===== */
+        .loading {
+            text-align: center; color: #f0a500;
+            padding: 20px; display: none;
+        }
+        .loading.show { display: block; }
+        .error-msg {
+            color: #ff6b6b; text-align: center;
+            padding: 16px; background: #2a1a1a;
+            border-radius: 8px; margin-bottom: 16px;
+            display: none;
+        }
+        .error-msg.show { display: block; }
+
+        .empty-hint {
+            text-align: center; color: #666;
+            padding: 30px 20px; font-size: 0.9rem;
+        }
+
+        /* ===== 移动端 ===== */
+        @media (max-width: 600px) {
+            body { padding: 20px 12px; }
+            h1 { font-size: 1.4rem; }
+            .search-box { flex-direction: column; }
+            .search-box button { width: 100%; }
+            .price-grid { grid-template-columns: 1fr; }
+            .card-header { flex-direction: column; align-items: flex-start; }
+            .bar-chart { height: 220px; gap: 6px; }
+            .bar-wrapper { min-width: 50px; }
+            .bar-label { font-size: 0.7rem; }
+            .chart-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 CS2 饰品价格查询</h1>
+        <p class="subtitle">数据来源：SteamDT 开放平台</p>
+
+        <div class="toolbar">
+            <select id="currencySelect" class="currency-select" onchange="onCurrencyChange()">
+                <option value="23">¥ 人民币</option>
+                <option value="1">$ 美元</option>
+            </select>
+        </div>
+
+        <div class="search-box" id="searchBox">
+            <input type="text" id="keyword" placeholder="输入饰品名称，如：AK-47 红线、蝴蝶刀..." autocomplete="off">
+            <button id="searchBtn" onclick="doSearch()">搜索</button>
+        </div>
+
+        <div class="loading" id="loading">🔍 查询中，请稍候...</div>
+        <div class="error-msg" id="errorMsg"></div>
+
+        <div class="result-card" id="candidateCard">
+            <div class="card-header"><h3>请选择要查询的饰品</h3></div>
+            <ul class="candidate-list" id="candidateList"></ul>
+        </div>
+
+        <div class="result-card" id="priceCard">
+            <div class="card-header">
+                <h3 id="priceTitle">价格信息</h3>
+                <button class="back-btn" onclick="backToSearch()">← 返回搜索</button>
+            </div>
+            <div class="price-grid" id="priceGrid"></div>
+
+            <div class="chart-wrap" id="chartWrap" style="display:none;">
+                <h4>
+                    📊 各平台在售价对比
+                    <span class="chart-hint">💡 点击柱子可联动高亮价格卡片</span>
+                </h4>
+                <div class="chart-container">
+                    <div class="bar-chart" id="barChart"></div>
+                </div>
+            </div>
+
+            <div class="history-wrap" id="historyWrap" style="display:none;">
+                <div class="history-header">
+                    <h4>📈 历史价格走势</h4>
+                    <select id="platformSelect" class="platform-select" onchange="onPlatformChange()"></select>
+                </div>
+                <div class="history-container">
+                    <svg id="historySvg" class="history-svg" preserveAspectRatio="xMidYMid meet"></svg>
+                    <div class="history-empty" id="historyEmpty" style="display:none;">
+                        暂无历史数据，多次查询同一饰品后即可查看价格趋势
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const keywordInput = document.getElementById('keyword');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchBox = document.getElementById('searchBox');
+        const loading = document.getElementById('loading');
+        const errorMsg = document.getElementById('errorMsg');
+        const candidateCard = document.getElementById('candidateCard');
+        const candidateList = document.getElementById('candidateList');
+        const priceCard = document.getElementById('priceCard');
+        const priceTitle = document.getElementById('priceTitle');
+        const priceGrid = document.getElementById('priceGrid');
+        const chartWrap = document.getElementById('chartWrap');
+        const barChart = document.getElementById('barChart');
+        const historyWrap = document.getElementById('historyWrap');
+        const platformSelect = document.getElementById('platformSelect');
+        const historySvg = document.getElementById('historySvg');
+        const historyEmpty = document.getElementById('historyEmpty');
+        const currencySelect = document.getElementById('currencySelect');
+
+        const PLATFORM_NAMES = {
+            'STEAM': 'Steam市场', 'BUFF': 'BUFF', 'YOUPIN': '悠悠有品',
+            'C5': 'C5GAME', 'HALOSKINS': 'HaloSkins', 'WAXPEER': 'Waxpeer',
+            'DMARKET': 'DMarket', 'CSMONEY': 'CS.MONEY', 'SKINPORT': 'Skinport',
+            'IGXE': 'IGXE'
+        };
+
+        const CURRENCY_SYMBOL = { '23': '¥', '1': '$' };
+
+        let lastSearchResults = [];
+        let currentMarketName = '';
+        let currentPlatforms = [];
+
+        keywordInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+        function getCurrency() { return currencySelect.value; }
+        function getSymbol() { return CURRENCY_SYMBOL[getCurrency()] || '¥'; }
+
+        function showLoading(show) {
+            loading.classList.toggle('show', show);
+            searchBtn.disabled = show;
+        }
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.classList.add('show');
+            setTimeout(() => errorMsg.classList.remove('show'), 5000);
+        }
+
+        function hideCards() {
+            candidateCard.classList.remove('show');
+            priceCard.classList.remove('show');
+        }
+
+        function onCurrencyChange() {
+            // 币种切换后，如果当前有查过的饰品，重新查询
+            if (currentMarketName) {
+                queryPrice(currentMarketName, false);
+            }
+        }
+
+        // ===== 搜索 =====
+        async function doSearch() {
+            const keyword = keywordInput.value.trim();
+            if (!keyword) { showError('请输入饰品名称'); return; }
+
+            hideCards();
+            showLoading(true);
+
+            try {
+                const resp = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+                const data = await resp.json();
+                if (data.error) { showError(data.error); return; }
+
+                const items = data.data || data.items || data.result || [];
+                if (!items.length) { showError('未找到匹配的饰品，请尝试其他关键词'); return; }
+
+                lastSearchResults = items;
+                renderCandidates(items);
+            } catch (err) {
+                showError('网络请求失败：' + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderCandidates(items) {
+            candidateList.innerHTML = '';
+            items.slice(0, 10).forEach(item => {
+                const marketName = item.market_hash_name || item.marketHashName || item.name;
+                const cnName = item.name_cn || item.nameCn || item.cnName || '';
+
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div style="flex:1;">
+                        <div class="name">${cnName || marketName}</div>
+                        <div class="sub">${marketName}</div>
+                    </div>
+                    <span class="arrow">→</span>
+                `;
+                li.onclick = () => queryPrice(marketName, true);
+                candidateList.appendChild(li);
+            });
+            candidateCard.classList.add('show');
+        }
+
+        // ===== 查询价格 =====
+        async function queryPrice(marketHashName, switchPage = true) {
+            if (switchPage) hideCards();
+            showLoading(true);
+            currentMarketName = marketHashName;
+
+            try {
+                const url = `/api/price?marketHashName=${encodeURIComponent(marketHashName)}&currency=${getCurrency()}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.error) { showError(data.error); return; }
+
+                priceTitle.textContent = marketHashName;
+
+                const platforms = data.data || data.platforms || data.prices || data;
+                currentPlatforms = Array.isArray(platforms) ? platforms : [];
+
+                renderPrice(currentPlatforms);
+                priceCard.classList.add('show');
+
+                // 只有人民币查询才加载历史（历史数据存的是人民币）
+                if (getCurrency() === '23') {
+                    loadHistory(marketHashName);
+                } else {
+                    historyWrap.style.display = 'none';
+                }
+            } catch (err) {
+                showError('查询失败：' + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderPrice(platforms) {
+            priceGrid.innerHTML = '';
+
+            const valid = platforms.filter(p => {
+                const sell = Number(p.sellPrice ?? p.sell_price ?? 0);
+                const buy = Number(p.biddingPrice ?? p.buyPrice ?? 0);
+                return sell > 0 || buy > 0;
+            });
+
+            if (!valid.length) {
+                priceGrid.innerHTML = '<div class="empty-hint" style="grid-column:1/-1;">该饰品当前无平台在售或求购数据</div>';
+                chartWrap.style.display = 'none';
+                return;
+            }
+
+            const sellPrices = valid.map(p => Number(p.sellPrice ?? p.sell_price ?? 0)).filter(v => v > 0);
+            const buyPrices = valid.map(p => Number(p.biddingPrice ?? p.buyPrice ?? 0)).filter(v => v > 0);
+            const lowestSell = sellPrices.length ? Math.min(...sellPrices) : null;
+            const highestBuy = buyPrices.length ? Math.max(...buyPrices) : null;
+
+            const sorted = [...valid].sort((a, b) => {
+                const sa = Number(a.sellPrice ?? a.sell_price ?? 0) || Infinity;
+                const sb = Number(b.sellPrice ?? b.sell_price ?? 0) || Infinity;
+                return sa - sb;
+            });
+
+            const symbol = getSymbol();
+
+            sorted.forEach(p => {
+                const platformCode = p.platform || p.name || '未知';
+                const platformName = PLATFORM_NAMES[platformCode] || platformCode;
+
+                const sellPrice = Number(p.sellPrice ?? p.sell_price ?? 0);
+                const buyPrice = Number(p.biddingPrice ?? p.buyPrice ?? 0);
+                const sellCount = p.sellCount ?? p.sell_num ?? 0;
+                const buyCount = p.biddingCount ?? p.buy_num ?? 0;
+
+                let badgeHtml = '';
+                if (sellPrice > 0 && sellPrice === lowestSell) {
+                    badgeHtml = '<span class="badge lowest">最低在售</span>';
+                } else if (buyPrice > 0 && buyPrice === highestBuy) {
+                    badgeHtml = '<span class="badge highest">最高求购</span>';
+                }
+
+                const div = document.createElement('div');
+                div.className = 'price-item';
+                div.dataset.platform = platformCode;
+                div.innerHTML = `
+                    <div class="platform">
+                        <span>${platformName}</span>
+                        ${badgeHtml}
+                    </div>
+                    ${sellPrice > 0 ? `
+                        <div class="price-row">
+                            <span class="key">在售最低</span>
+                            <span class="sell">${symbol}${sellPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="price-row">
+                            <span class="key">在售数量</span>
+                            <span>${sellCount}</span>
+                        </div>
+                    ` : ''}
+                    ${buyPrice > 0 ? `
+                        <div class="price-row">
+                            <span class="key">求购最高</span>
+                            <span class="buy">${symbol}${buyPrice.toFixed(2)}</span>
+                        </div>
+                        <div class="price-row">
+                            <span class="key">求购数量</span>
+                            <span>${buyCount}</span>
+                        </div>
+                    ` : ''}
+                `;
+                div.onclick = () => highlightPlatform(platformCode);
+                priceGrid.appendChild(div);
+            });
+
+            renderBarChart(valid);
+        }
+
+        // ===== 纯 CSS 柱状图（带生长动画） =====
+        function renderBarChart(platforms) {
+            barChart.innerHTML = '';
+
+            const chartData = platforms
+                .map(p => ({
+                    platform: p.platform,
+                    platformName: PLATFORM_NAMES[p.platform] || p.platform,
+                    price: Number(p.sellPrice ?? p.sell_price ?? 0)
+                }))
+                .filter(d => d.price > 0);
+
+            if (!chartData.length) {
+                chartWrap.style.display = 'none';
+                return;
+            }
+
+            chartData.sort((a, b) => a.price - b.price);
+
+            const maxPrice = Math.max(...chartData.map(d => d.price));
+            const minPrice = chartData[0].price;
+            const symbol = getSymbol();
+
+            const CHART_HEIGHT = 280;
+            const TOP_PADDING = 24;
+            const AVAILABLE_HEIGHT = CHART_HEIGHT - TOP_PADDING - 60;
+            const MIN_BAR_HEIGHT = 20;
+
+            chartData.forEach((d, idx) => {
+                const ratio = maxPrice === minPrice
+                    ? 1
+                    : 0.3 + 0.7 * (d.price - minPrice) / (maxPrice - minPrice);
+                const barHeight = Math.max(MIN_BAR_HEIGHT, ratio * AVAILABLE_HEIGHT);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'bar-wrapper' + (d.price === minPrice ? ' lowest' : '');
+                wrapper.dataset.platform = d.platform;
+                wrapper.innerHTML = `
+                    <div class="bar-value" style="opacity:0;">${symbol}${d.price.toFixed(2)}</div>
+                    <div class="bar" style="height: 0px;"></div>
+                    <div class="bar-label">
+                        <span class="platform-name">${d.platformName}</span>
+                        <span class="platform-price">${symbol}${d.price.toFixed(2)}</span>
+                    </div>
+                `;
+                wrapper.onclick = () => highlightPlatform(d.platform);
+                barChart.appendChild(wrapper);
+
+                // 逐个延时触发动画
+                const bar = wrapper.querySelector('.bar');
+                const valueEl = wrapper.querySelector('.bar-value');
+                const delay = idx * 80 + 100;
+
+                setTimeout(() => {
+                    bar.style.height = barHeight + 'px';
+                    valueEl.style.opacity = '1';
+                }, delay);
+            });
+
+            chartWrap.style.display = 'block';
+        }
+
+        // ===== 点击高亮联动 =====
+        function highlightPlatform(platformCode) {
+            // 清除所有高亮
+            document.querySelectorAll('.price-item, .bar-wrapper').forEach(el => {
+                el.classList.remove('highlight');
+            });
+
+            // 高亮对应的
+            const priceItem = document.querySelector(`.price-item[data-platform="${platformCode}"]`);
+            const barWrapper = document.querySelector(`.bar-wrapper[data-platform="${platformCode}"]`);
+
+            if (priceItem) {
+                priceItem.classList.add('highlight');
+                priceItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            if (barWrapper) {
+                barWrapper.classList.add('highlight');
+            }
+
+            // 3 秒后自动取消
+            setTimeout(() => {
+                if (priceItem) priceItem.classList.remove('highlight');
+                if (barWrapper) barWrapper.classList.remove('highlight');
+            }, 3000);
+        }
+
+        // ===== 历史价格加载 =====
+        async function loadHistory(marketHashName) {
+            try {
+                const resp = await fetch(`/api/history?marketHashName=${encodeURIComponent(marketHashName)}&limit=100`);
+                const data = await resp.json();
+
+                const rows = data.data || [];
+                if (!rows.length) {
+                    historyWrap.style.display = 'none';
+                    return;
+                }
+
+                // 收集所有平台
+                const platforms = [...new Set(rows.map(r => r.platform))];
+                const currentSelected = platformSelect.value;
+
+                // 填充下拉框
+                platformSelect.innerHTML = '';
+                platforms.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.textContent = PLATFORM_NAMES[p] || p;
+                    platformSelect.appendChild(opt);
+                });
+
+                // 恢复选中，或默认选第一个
+                if (platforms.includes(currentSelected)) {
+                    platformSelect.value = currentSelected;
+                }
+
+                // 渲染折线
+                renderHistoryChart(rows, platformSelect.value || platforms[0]);
+                historyWrap.style.display = 'block';
+            } catch (err) {
+                console.warn('加载历史失败：', err);
+                historyWrap.style.display = 'none';
+            }
+        }
+
+        function onPlatformChange() {
+            if (!currentMarketName) return;
+            const platform = platformSelect.value;
+            // 从已加载的数据里过滤（简化：重新拉一次）
+            fetch(`/api/history?marketHashName=${encodeURIComponent(currentMarketName)}&platform=${platform}&limit=100`)
+                .then(r => r.json())
+                .then(data => {
+                    renderHistoryChart(data.data || [], platform);
+                });
+        }
+
+        // ===== SVG 折线图 =====
+        function renderHistoryChart(allRows, platform) {
+            const rows = allRows.filter(r => r.platform === platform && Number(r.sell_price) > 0);
+
+            if (rows.length < 2) {
+                historySvg.innerHTML = '';
+                historyEmpty.style.display = 'block';
+                historyEmpty.textContent = rows.length === 0
+                    ? '暂无该平台历史数据'
+                    : '该平台仅有 1 条记录，多次查询后即可查看趋势';
+                return;
+            }
+            historyEmpty.style.display = 'none';
+
+            const W = 800, H = 220;
+            const padding = { top: 20, right: 20, bottom: 40, left: 55 };
+            const chartW = W - padding.left - padding.right;
+            const chartH = H - padding.top - padding.bottom;
+
+            const prices = rows.map(r => Number(r.sell_price));
+            let minP = Math.min(...prices);
+            let maxP = Math.max(...prices);
+            if (maxP === minP) { maxP += 1; minP -= 1; }
+            const range = maxP - minP;
+
+            const points = rows.map((r, i) => {
+                const x = padding.left + (i / (rows.length - 1)) * chartW;
+                const y = padding.top + chartH - ((Number(r.sell_price) - minP) / range) * chartH;
+                return { x, y, data: r };
+            });
+
+            let svg = '';
+
+            // 网格 + Y 轴刻度
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (i / 4) * chartH;
+                const val = maxP - (i / 4) * range;
+                svg += `<line x1="${padding.left}" y1="${y}" x2="${padding.left + chartW}" y2="${y}" stroke="#2a2a4a" stroke-dasharray="3,3"/>`;
+                svg += `<text x="${padding.left - 8}" y="${y + 4}" fill="#888" font-size="10" text-anchor="end">¥${val.toFixed(0)}</text>`;
+            }
+
+            // 坐标轴
+            svg += `<line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartH}" stroke="#3a3a5a" stroke-width="1"/>`;
+            svg += `<line x1="${padding.left}" y1="${padding.top + chartH}" x2="${padding.left + chartW}" y2="${padding.top + chartH}" stroke="#3a3a5a" stroke-width="1"/>`;
+
+            // 折线 + 渐变填充
+            const linePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+            const areaPoints = `${padding.left},${padding.top + chartH} ${linePoints} ${padding.left + chartW},${padding.top + chartH}`;
+
+            svg += `<defs>
+                <linearGradient id="lineArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#f0a500" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#f0a500" stop-opacity="0"/>
+                </linearGradient>
+            </defs>`;
+            svg += `<polygon points="${areaPoints}" fill="url(#lineArea)"/>`;
+            svg += `<polyline points="${linePoints}" fill="none" stroke="#f0a500" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+            // 数据点
+            points.forEach(p => {
+                svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#4ecca3" stroke="#1a1a2e" stroke-width="2">
+                    <title>${p.data.recorded_at}  ¥${Number(p.data.sell_price).toFixed(2)}</title>
+                </circle>`;
+            });
+
+            // X 轴时间标签
+            svg += `<text x="${padding.left}" y="${H - 10}" fill="#888" font-size="10" text-anchor="start">${rows[0].recorded_at}</text>`;
+            svg += `<text x="${padding.left + chartW}" y="${H - 10}" fill="#888" font-size="10" text-anchor="end">${rows[rows.length - 1].recorded_at}</text>`;
+
+            historySvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+            historySvg.innerHTML = svg;
+        }
+
+        function backToSearch() {
+            priceCard.classList.remove('show');
+            chartWrap.style.display = 'none';
+            historyWrap.style.display = 'none';
+
+            if (lastSearchResults.length) {
+                renderCandidates(lastSearchResults);
+            } else {
+                searchBox.style.display = 'flex';
+                keywordInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>

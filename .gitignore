@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 本地配置与密钥（务必不要提交）
+.env
+.env.*
+
+# IDE / 系统文件
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 本地备份
+*.bak_*
+*.log
+
+# 数据导出（体积大，按需自行生成）
+steamdt_priced_report.csv
+steamdt_priced_report.txt
+steam_items_base.json
